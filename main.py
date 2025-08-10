@@ -58,186 +58,12 @@ def nice_table(title: str, rows: list[tuple[str, str]]):
     console.print(table)
 
 
-async def close_google_ads(page):
-    """Enhanced Google Vignette and general ad closing logic"""
-    try:
-        # Wait a moment for ads to load
-        await asyncio.sleep(0.5)
-        
-        # Comprehensive list of ad close selectors
-        ad_close_selectors = [
-            # Google Vignette specific
-            "#google_vignette .close-button",
-            "#google_vignette button[aria-label*='close']",
-            "#google_vignette button[aria-label*='Close']",
-            "#google_vignette [role='button']",
-            "#google_vignette .close",
-            "#google_vignette .x",
-            "#google_vignette button",
-            ".google_vignette .close-button",
-            ".google_vignette button[aria-label*='close']",
-            ".google_vignette button[aria-label*='Close']",
-            ".google_vignette [role='button']",
-            ".google_vignette .close",
-            ".google_vignette .x",
-            ".google_vignette button",
-            
-            # General ad close patterns
-            "div[id*='google_vignette'] button",
-            "div[class*='google_vignette'] button",
-            "div[id*='vignette'] button",
-            "div[class*='vignette'] button",
-            "[data-google-vignette] button",
-            "[data-vignette] button",
-            "button[onclick*='google_vignette']",
-            "button[onclick*='vignette']",
-            
-            # Common ad overlay patterns
-            ".ad-overlay button",
-            ".popup-overlay button",
-            ".modal-overlay button",
-            ".interstitial button",
-            "[class*='overlay'] button[aria-label*='close']",
-            "[class*='popup'] button[aria-label*='close']",
-            "[class*='modal'] button[aria-label*='close']",
-            
-            # Generic close button patterns
-            "button[title*='Close']",
-            "button[title*='close']",
-            "button[alt*='Close']",
-            "button[alt*='close']",
-            "a[title*='Close']",
-            "a[title*='close']",
-            ".close-btn",
-            ".close-button",
-            ".btn-close",
-            ".popup-close",
-            ".modal-close",
-            
-            # X close buttons
-            "button:has-text('×')",
-            "button:has-text('✕')",
-            "button:has-text('X')",
-            "a:has-text('×')",
-            "a:has-text('✕')",
-            "a:has-text('X')",
-            
-            # XPath patterns for more complex detection
-            "xpath=//div[contains(@id,'google_vignette')]//button",
-            "xpath=//div[contains(@class,'google_vignette')]//button",
-            "xpath=//div[contains(@id,'vignette')]//button",
-            "xpath=//div[contains(@class,'vignette')]//button",
-            "xpath=//button[contains(@aria-label,'close') or contains(@aria-label,'Close')]",
-            "xpath=//button[contains(@title,'close') or contains(@title,'Close')]",
-            "xpath=//button[text()='×' or text()='✕' or text()='X']",
-            "xpath=//a[text()='×' or text()='✕' or text()='X']",
-        ]
-        
-        # Try to close ads with multiple attempts
-        ads_closed = 0
-        max_attempts = 3
-        
-        for attempt in range(max_attempts):
-            found_ad = False
-            
-            for selector in ad_close_selectors:
-                try:
-                    # Check if ad close button exists (very short timeout)
-                    elements = await page.query_selector_all(selector)
-                    
-                    for element in elements:
-                        try:
-                            # Check if element is visible
-                            is_visible = await element.is_visible()
-                            if is_visible:
-                                # Try multiple click methods
-                                try:
-                                    await element.click(timeout=2000, force=True)
-                                    found_ad = True
-                                    ads_closed += 1
-                                    if VERBOSE:
-                                        console.print(f"[yellow]Closed ad (method 1)[/yellow] using: {selector}")
-                                except Exception:
-                                    try:
-                                        # Force JS click if normal click fails
-                                        await page.evaluate("element => element.click()", element)
-                                        found_ad = True
-                                        ads_closed += 1
-                                        if VERBOSE:
-                                            console.print(f"[yellow]Closed ad (method 2)[/yellow] using: {selector}")
-                                    except Exception:
-                                        try:
-                                            # Try mouse click at element position
-                                            box = await element.bounding_box()
-                                            if box:
-                                                await page.mouse.click(
-                                                    box["x"] + box["width"] / 2,
-                                                    box["y"] + box["height"] / 2
-                                                )
-                                                found_ad = True
-                                                ads_closed += 1
-                                                if VERBOSE:
-                                                    console.print(f"[yellow]Closed ad (method 3)[/yellow] using: {selector}")
-                                        except Exception:
-                                            pass
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-            
-            if found_ad:
-                # Wait for ad to close and page to settle
-                await asyncio.sleep(1)
-                
-                # Check if more ads appeared
-                continue
-            else:
-                # No more ads found, break the loop
-                break
-        
-        # Additional check for any remaining overlay elements
-        try:
-            overlay_selectors = [
-                "[style*='position: fixed']",
-                "[style*='z-index: 999']",
-                "[style*='z-index: 9999']",
-                ".overlay",
-                ".popup",
-                ".modal",
-                ".interstitial"
-            ]
-            
-            for overlay_sel in overlay_selectors:
-                overlays = await page.query_selector_all(overlay_sel)
-                for overlay in overlays:
-                    try:
-                        is_visible = await overlay.is_visible()
-                        if is_visible:
-                            # Look for close button within overlay
-                            close_btn = await overlay.query_selector("button, a[href='#'], .close, .x")
-                            if close_btn:
-                                await close_btn.click(force=True)
-                                ads_closed += 1
-                                if VERBOSE:
-                                    console.print(f"[yellow]Closed overlay ad[/yellow]")
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-        
-        if ads_closed > 0 and VERBOSE:
-            console.print(f"[green]Successfully closed {ads_closed} ad(s)[/green]")
-            
-    except Exception as e:
-        if VERBOSE:
-            console.print(f"[red]Ad closing error: {e}[/red]")
-        pass  # Silently handle any ad-closing errors
-
-
 async def hard_click(page, selector: str, description: str, many_selectors: list[str] | None = None, double: bool = False) -> None:
     """Hard, real-like click with many strategies and live logs.
 
     - Poll every 100ms up to 60s using multiple selectors
+    - Handle hidden elements with no_display class
+    - Wait for elements to become visible or click them when found
     - Scroll into view, focus, mouse move, down/up, force click
     - JS click + dispatch pointer events as fallback
     - Optional double click for stubborn buttons
@@ -253,99 +79,214 @@ async def hard_click(page, selector: str, description: str, many_selectors: list
             if VERBOSE and now - last_log > 1.0:
                 console.print(f"[yellow]Searching[/yellow] for [cyan]{description}[/cyan] using selector: [white]{sel}[/white] t={now:.0f}")
                 last_log = now
+            
             try:
-                el = await page.wait_for_selector(sel, timeout=POLL_MS, state="visible")
-                if not el:
-                    continue
+                # First try to find visible elements
                 try:
-                    await el.scroll_into_view_if_needed()
-                except Exception:
+                    el = await page.wait_for_selector(sel, timeout=POLL_MS, state="visible")
+                    if el:
+                        if VERBOSE:
+                            console.print(f"[green]Found visible element[/green] for {description}")
+                        success = await attempt_click_element(page, el, description, double)
+                        if success:
+                            return
+                except PlaywrightTimeout:
                     pass
-                # Try element.click with different forces
-                for force in (True, False):
-                    try:
-                        await el.click(force=force, timeout=MAX_WAIT)
-                        if VERBOSE:
-                            console.print(f"[green]Clicked[/green] {description} via element.click(force={force})")
-                        # Wait briefly for any ads to load, then close them
-                        await asyncio.sleep(0.8)
-                        await close_google_ads(page)
-                        return
-                    except Exception as e:
-                        last_err = e
-                # Try double click if requested
-                if double:
-                    try:
-                        await el.dblclick(timeout=MAX_WAIT)
-                        if VERBOSE:
-                            console.print(f"[green]Double-clicked[/green] {description} via element.dblclick()")
-                        # Wait briefly for any ads to load, then close them
-                        await asyncio.sleep(0.8)
-                        await close_google_ads(page)
-                        return
-                    except Exception as e:
-                        last_err = e
-                # Try mouse interaction at element center with human-like behavior
+                
+                # If no visible element found, try to find any element (including hidden)
                 try:
-                    box = await el.bounding_box()
-                except Exception:
-                    box = None
-                if box:
-                    try:
-                        # Add small random offset for more human-like clicking
-                        x = box["x"] + box["width"] * (0.3 + random.random() * 0.4)
-                        y = box["y"] + box["height"] * (0.3 + random.random() * 0.4)
-                        
-                        # Human-like mouse movement and click timing
-                        await page.mouse.move(x, y)
-                        await asyncio.sleep(random.uniform(0.05, 0.15))  # Brief pause
-                        await page.mouse.down()
-                        await asyncio.sleep(random.uniform(0.05, 0.12))  # Hold time
-                        await page.mouse.up()
-                        
-                        if VERBOSE:
-                            console.print(f"[green]Human-like mouse click[/green] on {description} at ({x:.0f},{y:.0f})")
-                        # Wait briefly for any ads to load, then close them
-                        await asyncio.sleep(0.8)
-                        await close_google_ads(page)
-                        return
-                    except Exception as e:
-                        last_err = e
-                # Try page.click selector directly
-                try:
-                    await page.click(sel, timeout=MAX_WAIT, force=True)
-                    if VERBOSE:
-                        console.print(f"[green]Clicked[/green] {description} via page.click(force=True)")
-                    # Wait briefly for any ads to load, then close them
-                    await asyncio.sleep(0.8)
-                    await close_google_ads(page)
-                    return
-                except Exception as e:
-                    last_err = e
-                # Try JS click and dispatch events
-                try:
-                    await page.evaluate(
-                        "el => { el.dispatchEvent(new MouseEvent('mousedown',{bubbles:true})); el.dispatchEvent(new MouseEvent('mouseup',{bubbles:true})); el.click(); }",
-                        el,
-                    )
-                    if VERBOSE:
-                        console.print(f"[green]Clicked[/green] {description} via JS dispatch")
-                    # Wait briefly for any ads to load, then close them
-                    await asyncio.sleep(0.8)
-                    await close_google_ads(page)
-                    return
-                except Exception as e:
-                    last_err = e
-            except PlaywrightTimeout as e:
-                last_err = e
-                await asyncio.sleep(POLL_MS / 1000)
-                continue
+                    el = await page.wait_for_selector(sel, timeout=POLL_MS, state="attached")
+                    if el:
+                        # Check if element has no_display class
+                        classes = await el.get_attribute("class") or ""
+                        if "no_display" in classes:
+                            if VERBOSE:
+                                console.print(f"[yellow]Found hidden element[/yellow] for {description}, waiting for it to become visible...")
+                            
+                            # Wait for the element to become visible (remove no_display class)
+                            try:
+                                # First try with a shorter wait (2 seconds)
+                                await page.wait_for_function(
+                                    f"document.querySelector('{sel}') && !document.querySelector('{sel}').classList.contains('no_display')",
+                                    timeout=2000
+                                )
+                                if VERBOSE:
+                                    console.print(f"[green]Element became visible quickly[/green] for {description}")
+                                success = await attempt_click_element(page, el, description, double)
+                                if success:
+                                    return
+                            except PlaywrightTimeout:
+                                # Try waiting a bit longer (5 more seconds)
+                                try:
+                                    await page.wait_for_function(
+                                        f"document.querySelector('{sel}') && !document.querySelector('{sel}').classList.contains('no_display')",
+                                        timeout=5000
+                                    )
+                                    if VERBOSE:
+                                        console.print(f"[green]Element became visible after delay[/green] for {description}")
+                                    success = await attempt_click_element(page, el, description, double)
+                                    if success:
+                                        return
+                                except PlaywrightTimeout:
+                                    # Element didn't become visible in 7 seconds total, try alternative approaches
+                                    if VERBOSE:
+                                        console.print(f"[yellow]Element still hidden after 7s, trying alternative methods[/yellow] for {description}")
+                                    
+                                    # Try to remove no_display class manually
+                                    try:
+                                        await page.evaluate(f"document.querySelector('{sel}')?.classList.remove('no_display')")
+                                        await asyncio.sleep(0.5)  # Give time for the change to take effect
+                                        success = await attempt_click_element(page, el, description, double)
+                                        if success:
+                                            return
+                                    except Exception:
+                                        pass
+                                    
+                                    # Try to click the hidden element directly with JS
+                                    try:
+                                        await page.evaluate(f"document.querySelector('{sel}')?.click()")
+                                        if VERBOSE:
+                                            console.print(f"[green]Clicked hidden element via JS[/green] for {description}")
+                                        return
+                                    except Exception:
+                                        pass
+                        else:
+                            # Element exists and doesn't have no_display class
+                            success = await attempt_click_element(page, el, description, double)
+                            if success:
+                                return
+                except PlaywrightTimeout:
+                    pass
+                    
             except Exception as e:
                 last_err = e
-                await asyncio.sleep(POLL_MS / 1000)
-                continue
+                
         await asyncio.sleep(POLL_MS / 1000)
+    
     raise last_err or RuntimeError(f"Element not found/clickable: {description}")
+
+
+async def attempt_click_element(page, el, description: str, double: bool = False) -> bool:
+    """Attempt to click an element using various methods. Returns True if successful."""
+    try:
+        await el.scroll_into_view_if_needed()
+    except Exception:
+        pass
+    
+    # Try element.click with different forces
+    for force in (True, False):
+        try:
+            await el.click(force=force, timeout=MAX_WAIT)
+            if VERBOSE:
+                console.print(f"[green]Clicked[/green] {description} via element.click(force={force})")
+            return True
+        except Exception:
+            continue
+    
+    # Try double click if requested
+    if double:
+        try:
+            await el.dblclick(timeout=MAX_WAIT)
+            if VERBOSE:
+                console.print(f"[green]Double-clicked[/green] {description} via element.dblclick()")
+            return True
+        except Exception:
+            pass
+    
+    # Try mouse interaction at element center with human-like behavior
+    try:
+        box = await el.bounding_box()
+    except Exception:
+        box = None
+    
+    if box:
+        try:
+            # Add small random offset for more human-like clicking
+            x = box["x"] + box["width"] * (0.3 + random.random() * 0.4)
+            y = box["y"] + box["height"] * (0.3 + random.random() * 0.4)
+            
+            # Human-like mouse movement and click timing
+            await page.mouse.move(x, y)
+            await asyncio.sleep(random.uniform(0.05, 0.15))  # Brief pause
+            await page.mouse.down()
+            await asyncio.sleep(random.uniform(0.05, 0.12))  # Hold time
+            await page.mouse.up()
+            
+            if VERBOSE:
+                console.print(f"[green]Human-like mouse click[/green] on {description} at ({x:.0f},{y:.0f})")
+            return True
+        except Exception:
+            pass
+    
+    # Try JS click and dispatch events
+    try:
+        await page.evaluate(
+            "el => { el.dispatchEvent(new MouseEvent('mousedown',{bubbles:true})); el.dispatchEvent(new MouseEvent('mouseup',{bubbles:true})); el.click(); }",
+            el,
+        )
+        if VERBOSE:
+            console.print(f"[green]Clicked[/green] {description} via JS dispatch")
+        return True
+    except Exception:
+        pass
+    
+    return False
+
+
+async def search_and_click_close_svg(page) -> bool:
+    """Search for close SVG element every 100ms for up to 5 seconds and click if found"""
+    deadline = time.time() + 5.0  # 5 seconds timeout
+    
+    # SVG selector based on the path content
+    svg_selector = 'svg path[d="M38 12.83L35.17 10 24 21.17 12.83 10 10 12.83 21.17 24 10 35.17 12.83 38 24 26.83 35.17 38 38 35.17 26.83 24z"]'
+    
+    while time.time() < deadline:
+        try:
+            # Look for the SVG element
+            svg_element = await page.query_selector(svg_selector)
+            if svg_element:
+                # Check if the element is visible
+                is_visible = await svg_element.is_visible()
+                if is_visible:
+                    try:
+                        # Click on the SVG element (or its parent)
+                        svg_parent = await svg_element.query_selector('xpath=..')
+                        if svg_parent:
+                            await svg_parent.click(timeout=2000)
+                        else:
+                            await svg_element.click(timeout=2000)
+                        
+                        if VERBOSE:
+                            console.print(f"[green]Clicked close SVG element[/green]")
+                        return True
+                    except Exception as e:
+                        if VERBOSE:
+                            console.print(f"[yellow]Failed to click SVG element: {e}[/yellow]")
+                        # Try alternative clicking methods
+                        try:
+                            # Get the SVG element or its clickable parent
+                            clickable_element = svg_parent if svg_parent else svg_element
+                            box = await clickable_element.bounding_box()
+                            if box:
+                                await page.mouse.click(
+                                    box["x"] + box["width"] / 2,
+                                    box["y"] + box["height"] / 2
+                                )
+                                if VERBOSE:
+                                    console.print(f"[green]Clicked close SVG element via mouse[/green]")
+                                return True
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+        
+        # Wait 100ms before next attempt
+        await asyncio.sleep(0.1)
+    
+    # Element not found within 5 seconds
+    if VERBOSE:
+        console.print(f"[yellow]Close SVG element not found within 5 seconds[/yellow]")
+    return False
 
 
 async def wait_for_load(page, max_ms: int = 8000):
@@ -573,78 +514,130 @@ async def run_once(url: str, instance_id: int, _unused_user_data_dir: Path, stat
             await wait_for_load(page)
             results.append(StepResult("Open URL", "OK", url))
 
-            # Proactively check for ads on page load
-            await close_google_ads(page)
-
             # Step 1: div.start_btn
             state.current_step = "step 1"
-            await close_google_ads(page)  # Check before clicking
-            await hard_click(page, "div.start_btn", "div.start_btn")
+            await hard_click(page, "div.start_btn", "div.start_btn", [
+                ".start_btn", 
+                "div[class*='start_btn']", 
+                "button.start_btn",
+                "[class*='start_btn']:not(.no_display)",
+                "div.btn:contains('Click here to verify')",
+                "div:contains('Click here to verify')"
+            ])
             await wait_for_load(page)
             results.append(StepResult("Step 1", "OK"))
 
             # Step 2: div.btn:nth-child(1)
             state.current_step = "step 2"
-            await close_google_ads(page)  # Check before clicking
-            await hard_click(page, "div.btn:nth-child(1)", "div.btn:nth-child(1)")
+            await hard_click(page, "div.btn:nth-child(1)", "div.btn:nth-child(1)", [
+                "div.btn:first-child",
+                ".btn:nth-child(1)",
+                "div[class*='btn']:nth-child(1)",
+                "div.btn:not(.no_display):nth-child(1)"
+            ])
             await wait_for_load(page)
             results.append(StepResult("Step 2", "OK"))
 
             # Step 3: a.btn:nth-child(1)
             state.current_step = "step 3"
-            await close_google_ads(page)  # Check before clicking
-            await hard_click(page, "a.btn:nth-child(1)", "a.btn:nth-child(1)")
+            await hard_click(page, "a.btn:nth-child(1)", "a.btn:nth-child(1)", [
+                "a.btn:first-child",
+                "a[class*='btn']:nth-child(1)",
+                "a.btn:not(.no_display):nth-child(1)",
+                "a:nth-child(1)[class*='btn']"
+            ])
             await wait_for_load(page)
             results.append(StepResult("Step 3", "OK"))
+            
+            # Search for close SVG element after step 3
+            await search_and_click_close_svg(page)
 
             # Step 4: div.start_btn (after redirect)
             state.current_step = "step 4"
-            await close_google_ads(page)  # Check before clicking
-            await hard_click(page, "div.start_btn", "div.start_btn")
+            await hard_click(page, "div.start_btn", "div.start_btn", [
+                ".start_btn", 
+                "div[class*='start_btn']", 
+                "button.start_btn",
+                "[class*='start_btn']:not(.no_display)",
+                "div.btn:contains('Click here to verify')",
+                "div:contains('Click here to verify')"
+            ])
             await wait_for_load(page)
             results.append(StepResult("Step 4", "OK"))
 
             # Step 5: div.btn:nth-child(1)
             state.current_step = "step 5"
-            await close_google_ads(page)  # Check before clicking
-            await hard_click(page, "div.btn:nth-child(1)", "div.btn:nth-child(1)")
+            await hard_click(page, "div.btn:nth-child(1)", "div.btn:nth-child(1)", [
+                "div.btn:first-child",
+                ".btn:nth-child(1)",
+                "div[class*='btn']:nth-child(1)",
+                "div.btn:not(.no_display):nth-child(1)"
+            ])
             await wait_for_load(page)
             results.append(StepResult("Step 5", "OK"))
 
             # Step 6: a.btn:nth-child(1)
             state.current_step = "step 6"
-            await close_google_ads(page)  # Check before clicking
-            await hard_click(page, "a.btn:nth-child(1)", "a.btn:nth-child(1)")
+            await hard_click(page, "a.btn:nth-child(1)", "a.btn:nth-child(1)", [
+                "a.btn:first-child",
+                "a[class*='btn']:nth-child(1)",
+                "a.btn:not(.no_display):nth-child(1)",
+                "a:nth-child(1)[class*='btn']"
+            ])
             await wait_for_load(page)
             results.append(StepResult("Step 6", "OK"))
+            
+            # Search for close SVG element after step 6
+            await search_and_click_close_svg(page)
 
             # Step 7: div.start_btn
             state.current_step = "step 7"
-            await close_google_ads(page)  # Check before clicking
-            await hard_click(page, "div.start_btn", "div.start_btn")
+            await hard_click(page, "div.start_btn", "div.start_btn", [
+                ".start_btn", 
+                "div[class*='start_btn']", 
+                "button.start_btn",
+                "[class*='start_btn']:not(.no_display)",
+                "div.btn:contains('Click here to verify')",
+                "div:contains('Click here to verify')"
+            ])
             await wait_for_load(page)
             results.append(StepResult("Step 7", "OK"))
 
             # Step 8: div.btn:nth-child(2)
             state.current_step = "step 8"
-            await close_google_ads(page)  # Check before clicking
-            await hard_click(page, "div.btn:nth-child(2)", "div.btn:nth-child(2)")
+            await hard_click(page, "div.btn:nth-child(2)", "div.btn:nth-child(2)", [
+                "div.btn:nth-of-type(2)",
+                ".btn:nth-child(2)",
+                "div[class*='btn']:nth-child(2)",
+                "div.btn:not(.no_display):nth-child(2)"
+            ])
             await wait_for_load(page)
             results.append(StepResult("Step 8", "OK"))
 
             # Step 9: a.btn:nth-child(2)
             state.current_step = "step 9"
-            await close_google_ads(page)  # Check before clicking
-            await hard_click(page, "a.btn:nth-child(2)", "a.btn:nth-child(2)")
+            await hard_click(page, "a.btn:nth-child(2)", "a.btn:nth-child(2)", [
+                "a.btn:nth-of-type(2)",
+                "a[class*='btn']:nth-child(2)",
+                "a.btn:not(.no_display):nth-child(2)",
+                "a:nth-child(2)[class*='btn']"
+            ])
             await wait_for_load(page)
             results.append(StepResult("Step 9", "OK"))
+            
+            # Search for close SVG element after step 9
+            await search_and_click_close_svg(page)
 
             # Step 10: a.get-link (wait 5 seconds)
             state.current_step = "step 10"
-            await close_google_ads(page)  # Check before clicking
             await wait_for_load(page)
             await asyncio.sleep(5)
-            await hard_click(page, "a.get-link", "a.get-link")
+            await hard_click(page, "a.get-link", "a.get-link", [
+                ".get-link",
+                "a[class*='get-link']",
+                "a:contains('Get Link')",
+                "a[href*='link']"
+            ])
             await asyncio.sleep(1)
             results.append(StepResult("Step 10", "OK", "Waited 5s before click"))
 
